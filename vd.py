@@ -159,7 +159,7 @@ base_commands = {
     ord('g'): 'raise ChangeCommandSet(global_commands, "g")',
 
     # meta sheets
-    ord('S'): 'createListSheet("sheets", vd.sheets, "name nRows nCols cursorValue source".split())',
+    ord('S'): 'createListSheet("sheets", vd.sheets, "r.name r.nRows r.nCols r.cursorValue r.source r.source.type".split())',
     ord('C'): 'createColumnSummary(sheet)',
     ord('O'): 'createDictSheet("options", options.__dict__)',
 
@@ -709,11 +709,19 @@ def lambda_getattr(b):
     func.setter = lambda r,v,b=b: setattr(r,b,v)
     return func
 
+def lambda_evalexpr(sheet, expr):
+    return lambda r,col=vc,sheet=sheet: eval(col.expr, dict((c.name, c.getValue(r)) for c in sheet.columns if c is not col))
 
 def ColumnExpr(sheet, expr):
     vc = VColumn(expr)
     vc.expr = expr
     vc.func = lambda r,col=vc,sheet=sheet: eval(col.expr, dict((c.name, c.getValue(r)) for c in sheet.columns if c is not col))
+    return vc
+
+def ObjExpr(sheet, expr):
+    vc = VColumn(expr)
+    vc.expr = expr
+    vc.func = lambda r,col=vc,sheet=sheet: eval(col.expr, {'r': r})
     return vc
 
 def getPublicAttrs(obj):
@@ -734,6 +742,10 @@ def ArrayNamedColumns(columnstr):
 def AttrColumns(colnames):
     'colnames is list of attribute names'
     return [VColumn(name, lambda_getattr(name)) for name in colnames]
+
+def EvalColumns(sheet, colexprs):
+    'colexprs is list of python expressions'
+    return [ObjExpr(sheet, expr) for expr in colexprs]
 
 def createTextViewer(name, text, src=None):
     viewer = vd.newSheet(name, src)
@@ -757,7 +769,7 @@ def createListSheet(name, iterable, columns=None, src=None):
     vs.rows = iterable
 
     if columns:
-        vs.columns = AttrColumns(columns)
+        vs.columns = EvalColumns(sheet, columns)
     elif isinstance(iterable[0], dict):  # list of dict
         vs.columns = [VColumn(k, lambda_colname(k)) for k in iterable[0].keys()]
     else:
