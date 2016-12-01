@@ -845,7 +845,7 @@ def ColumnExpr(sheet, expr):
         return vc
 
 def getPublicAttrs(obj):
-    return [k for k in dir(obj) if not k.startswith('_') and not callable(getattr(obj, k))]
+    return [k for k in dir(obj)]#  if not k.startswith('_') and not callable(getattr(obj, k))]
 
 def PyobjColumns(exampleRow):
     'columns for each public attribute on an object'
@@ -1174,6 +1174,22 @@ class open_hdf5(VSheetH5Obj):
         super().__init__(p.name, h5py.File(str(p), 'r'), p)
 open_h5 = open_hdf5
 
+import sqlalchemy
+import sqlalchemy.ext.automap
+
+def open_sql(url):
+    engine = sqlalchemy.create_engine(str(url))
+    metadata = sqlalchemy.MetaData()
+    metadata.reflect(engine)
+    Base = sqlalchemy.ext.automap.automap_base(metadata=metadata)
+    Base.prepare(engine, reflect=True)
+#    session = sqlalchemy.orm.Session(engine)
+
+    vs = VSheetDict(url, Base.classes)
+    return vs
+
+
+
 #### databases
 class VSheetBlaze(VSheet):
     def __init__(self, name, data, src):
@@ -1182,6 +1198,8 @@ class VSheetBlaze(VSheet):
         self.rows = list(data)
 
 def openUrl(url):
+    if url.startswith('sqlite://'):
+        return open_sql(url)
     import blaze
     import datashape; datashape.coretypes._canonical_string_encodings.update({"utf8_unicode_ci": "U8"})
     fp = blaze.data(url)
